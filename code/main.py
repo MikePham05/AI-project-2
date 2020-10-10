@@ -86,10 +86,12 @@ def terminal_reached() -> bool:
 def generating_moves(state) -> [[int]]:
     # TODO
     # dummy generating for testing now
-    pi = random.randint(0, 13)  # pivot i
-    pj = random.randint(0, 13)  # pivot j
-    print(pi, pj)
-    moves = [[pi, pj]]
+    moves = []
+    for i in range(0, 10):
+        pi = random.randint(0, 13)  # pivot i
+        pj = random.randint(0, 13)  # pivot j
+        moves.append([pi, pj])
+    print(moves)
     return moves
 
 
@@ -114,7 +116,7 @@ def generating_moves(state) -> [[int]]:
 
 def heuristic(state) -> int:
     # TODO
-    return 0
+    return random.randint(0, 10)
 
 
 """
@@ -215,7 +217,7 @@ def max_value(state, alpha, beta) -> int:
 
 def ab_pruning(state) -> int:
     global ai_move_i, ai_move_j
-    max_value(board, -oo, oo)
+    max_value(state, -oo, oo)
     return ai_move_i, ai_move_j
 
 
@@ -270,7 +272,7 @@ ai_move_j = 0  # AI move
 
 turn = 1
 count = 0
-while count < 5:
+while count < 6:
     count += 1
     if turn == 1:
         i1, j1 = input().split()
@@ -280,6 +282,7 @@ while count < 5:
         turn = 2
     else:
         ai_move()
+        depth = 0 # reset depth
         turn = 1
 
 print_format(board)
