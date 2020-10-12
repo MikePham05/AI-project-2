@@ -14,7 +14,8 @@ import random
 """
 
 
-def make_a_move(board, i, j, k) -> bool:
+def make_a_move(i, j, k) -> bool:
+    global board
     if board[i][j] != 0:
         return False
     board[i][j] = k
@@ -87,11 +88,11 @@ def generating_moves(state) -> [[int]]:
     # TODO
     # dummy generating for testing now
     moves = []
-    for i in range(0, 10):
+    for i in range(0, 3):
         pi = random.randint(0, 13)  # pivot i
         pj = random.randint(0, 13)  # pivot j
         moves.append([pi, pj])
-    print(moves)
+    # print(moves)
     return moves
 
 
@@ -172,6 +173,7 @@ def min_value(state, alpha, beta) -> int:
         make_future_move(state, i, j, 1)
         v = min(v, max_value(state, alpha, beta))
         undo_future_move(state, i, j)
+        depth += -1
         if v <= alpha:
             return v
         beta = min(beta, v)
@@ -229,9 +231,12 @@ def ab_pruning(state) -> int:
 
 def ai_move():
     global board
-    state = board
+    state = [[0 for i in range(0, 15)] for j in range(0, 15)]
+    for i in range(0, 15):
+        for j in range(0, 15):
+            state[i][j] = board[i][j]
     move_i, move_j = ab_pruning(state)
-    make_a_move(board, move_i, move_j, 2)
+    make_a_move(move_i, move_j, 2)
     print("AI made a move at", move_i, move_j)
     return
 
@@ -263,7 +268,7 @@ eval_points = [1, 3, 6, 9999]
 
 oo = 1000000
 depth = 0
-depth_limit = 2
+depth_limit = 4
 first_layer = True  # Used to extract the actual move that the AI will make
 ai_move_i = 0  # AI move
 ai_move_j = 0  # AI move
@@ -272,17 +277,15 @@ ai_move_j = 0  # AI move
 
 turn = 1
 count = 0
-while count < 6:
-    count += 1
+while not terminal_reached():
     if turn == 1:
         i1, j1 = input().split()
         i1 = int(i1)
         j1 = int(j1)
-        make_a_move(board, i1, j1, 1)
+        make_a_move(i1, j1, 1)
         turn = 2
     else:
         ai_move()
-        depth = 0 # reset depth
+        depth = 0  # reset depth
         turn = 1
 
-print_format(board)
