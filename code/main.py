@@ -1,36 +1,5 @@
 import random
 
-
-def update_tracking(r, c):
-    actual_moves.append([r, c])
-    update_possible_moves(r, c, "add")
-    return
-
-
-"""
-    This function makes a move at board[i, j] for player k
-
-    Var:
-        i, j: values of row and column for the move
-        k: 1 for player 1, 2 for player 2
-        board: current state of the board
-
-    Return:
-        True if the move was successful
-        False otherwise
-"""
-
-
-def make_a_move(i, j, k) -> bool:
-    global board
-    if board[i][j] != 0:
-        print("illegal move!, move not registered")
-        return False
-    board[i][j] = k
-    update_tracking(i, j)
-    return True
-
-
 """
     Check if i, j is in playing board:
     Var:
@@ -48,38 +17,6 @@ def in_board(i, j) -> bool:
 
 
 """
-    Checking terminal condition. The game reaches end condition when a row, column or a diagonal lines of 5 of the
-    moves from a same player exists. 
-    
-    Return: 
-        True if The game has ended 
-        False otherwise
-"""
-
-
-def terminal_reached() -> bool:
-    global board
-    valid = True
-    for i in range(0, 15):
-        for j in range(0, 15):
-            if board[i][j] != 0:
-                val = board[i][j]
-                for k in range(0, 4):
-                    for l in range(0, 4):
-                        adj_i = i + increments[k][l][0]
-                        adj_j = j + increments[k][l][1]
-                        if (not in_board(adj_i, adj_j)) or (board[adj_i][adj_j] != val):
-                            valid = False
-                            continue
-                    if not valid:
-                        valid = True
-                        continue
-                    print("player", val, "wins")
-                    return True
-    return False
-
-
-"""
     Generating children of a node in the search tree. Children created are created according to
     the algorithm implemented in this function. 
     The algorithm is: #TODO
@@ -87,28 +24,139 @@ def terminal_reached() -> bool:
     
     :var
         state: current state of the node
-        
+        player: the turn the player is playing
+        r, c: newest move on the board
     :return
         moves: a list of possible move from the current state of the board
 """
 
 
-def update_possible_moves(r, c, method) -> [[int]]:
-    # strategy: generate possible moves of all surrounding tiles of actual moves
-    for i in range(-1, 2):
-        for j in range(-1, 2):
-            if in_board(r + i, c + j):
-                nr = r + i
-                nc = c + j
-                if method == "add":
-                    if track_possible_moves[nr][nc] == 0:
-                        possible_moves.append([nr, nc])
-                    track_possible_moves[nr][nc] += 1
-                else:
-                    track_possible_moves[nr][nc] += -1
-                    if track_possible_moves[nr][nc] == 0:
-                        possible_moves.remove([nr, nc])
-    return
+def threat_detect(state, r, c) -> [[int]]:
+    # return a series of game ending moves, if possible, benefits player p
+    moves = []
+    # traverse in 4 directions around the cell: top left + down right, up down, top right + down left, left right
+    increment = [[-1, -1, + 1, + 1], [-1, 0, 1, 0], [-1, + 1, + 1, -1], [0, -1, 0, +1]]
+    for i in range(0, 4):
+        nr = r
+        nc = c
+        count_consecutive = 0  # count the number of consecutive moves
+        player = state[r][c]
+        while in_board(nr, nc) and state[nr][nc] == player:
+            count_consecutive += 1
+            nr += increment[i][0]
+            nc += increment[i][1]
+        pivot_r1 = nr
+        pivot_c1 = nc
+        nr = r
+        nc = c
+        while in_board(nr, nc) and state[nr][nc] == player:
+            count_consecutive += 1
+            nr += increment[i][2]
+            nc += increment[i][3]
+        pivot_r2 = nr
+        pivot_c2 = nc
+        count_consecutive += -1  # account for counting state[r][c] twice
+
+        # threat type urgent, next move if move is possible will end the game
+        if count_consecutive == 4 or count_consecutive == 3:
+            if in_board(pivot_r1, pivot_c1) and state[pivot_r1][pivot_c1] == 0:  # game ending move found
+                moves.append([pivot_r1, pivot_c1])
+                return moves
+            elif in_board(pivot_r2, pivot_c2) and state[pivot_r2][pivot_c2] == 0:
+                moves.append([pivot_r2, pivot_c2])
+                return moves
+            else:  # blocked at both pivots, move is no longer win cond
+                continue
+        elif count_consecutive == 2:
+            # move in radius of 2 tiles in same direction of the consecutive line of moves
+            if in_board(pivot_r1, pivot_c1) and in_board(pivot_r2, pivot_c2) and state[pivot_r1][pivot_c1] == 0 and state[pivot_r2][pivot_c2] == 0:
+                if in_board(pivot_r1 + increment[i][0], pivot_c1 + increment[i][1]) and state[pivot_r1 + increment[i][0]][pivot_c1 + increment[i][1]] == player:
+                    moves.extend([[pivot_r1, pivot_c1], [pivot_r2, pivot_c2]])
+                    if in_board(pivot_r1 + increment[i][0] * 2, pivot_c1 + increment[i][1] * 2):
+                        moves.append([pivot_r1 + increment[i][0] * 2, pivot_c1 + increment[i][1] * 2])
+                    return moves
+                if in_board(pivot_r2 + increment[i][2], pivot_c2 + increment[i][3]) and state[pivot_r2 + increment[i][2]][pivot_c2 + increment[i][3]] == player:
+                    moves.extend([[pivot_r1, pivot_c1], [pivot_r2, pivot_c2]])
+                    if in_board(pivot_r2 + increment[i][2] * 2, pivot_c2 + increment[i][3] * 2):
+                        moves.append([pivot_r2 + increment[i][2] * 2, pivot_c2 + increment[i][3] * 2])
+                    return moves
+        elif count_consecutive == 1:
+            if in_board(pivot_r1, pivot_c1) and in_board(pivot_r2, pivot_c2) and state[pivot_r1][pivot_c1] == 0 and state[pivot_r2][pivot_c2] == 0:
+                if in_board(pivot_r1 + increment[i][0] * 2, pivot_c1 + increment[i][1] * 2) and state[pivot_r1 + increment[i][0] * 2][pivot_c1 + increment[i][1] * 2] == player:
+                    if in_board(pivot_r1 + increment[i][0], pivot_c1 + increment[i][1]) and state[pivot_r1 + increment[i][0]][pivot_c1 + increment[i][1]] == player:
+                        moves.extend([[pivot_r1, pivot_c1], [pivot_r2, pivot_c2]])
+                        if in_board(pivot_r1 + increment[i][0] * 3, pivot_c1 + increment[i][1] * 3) and state[pivot_r1 + increment[i][0] * 3][pivot_c1 + increment[i][1] * 3] == player:
+                            moves.append([pivot_r1 + increment[i][0] * 3, pivot_c1 + increment[i][1] * 3])
+                if in_board(pivot_r2 + increment[i][2] * 2, pivot_c2 + increment[i][3] * 2) and state[pivot_r2 + increment[i][2] * 2][pivot_c2 + increment[i][3] * 2] == player:
+                    if in_board(pivot_r2 + increment[i][2], pivot_c2 + increment[i][3]) and state[pivot_r2 + increment[i][2]][pivot_c2 + increment[i][3]] == player:
+                        moves.extend([[pivot_r1, pivot_c1], [pivot_r2, pivot_c2]])
+                        if in_board(pivot_r2 + increment[i][2] * 3, pivot_c2 + increment[i][3] * 3) and state[pivot_r2 + increment[i][2] * 3][pivot_c2 + increment[i][3] * 3] == player:
+                            moves.append([pivot_r2 + increment[i][2] * 3, pivot_c2 + increment[i][3] * 3])
+
+    return moves  # no threat is found
+
+
+def attack(state, player):
+    # player makes attack moves at state
+    """
+        Possible attack:
+            line of 3 block 1: from a side
+            line of 2 non block: either side
+            line of 1 block: from surrounding
+    """
+    moves = []
+    return moves
+
+
+def defense(state, player):
+    # player makes defense moves at state
+    """
+        Possible defense
+            line of 3 block 1: from only a side
+            line of 2 non block: either side
+    """
+    moves = []
+    return moves
+
+
+def update_possible_moves(state, player) -> [[int]]:
+    # update possible moves for player player
+    # strategy:
+    # threat: threat is the moves that threaten to win the game if not defended
+    # if winning condition exists, only return winning move
+    # if threat exists, only return the defensive move to prevent loss condition
+    # if not: consider 2 options: attack and defense
+    # Attack: see if there's any line of AI move that can makes a ver, horizontal, diagonal line:
+    # add a move from either side
+    # Defense: same, but this time, with a line of opponents move, defense only viable thru moves that have at least
+    # 2 consecutive moves
+    moves = []
+
+    # check game ending condition
+    game_win_ending = threat_detect(state, last_search_move[player - 1][0], last_search_move[player - 1][1])
+    if len(game_win_ending) > 0:  # win game ending condition found
+        # player win condition found
+        moves.append(game_win_ending[0])
+        return moves
+
+    game_lose_ending = threat_detect(state, last_search_move[2 - player][0], last_search_move[2 - player][1])
+    if len(game_lose_ending) > 0:  # Opposing player of playing win cond found, lose condition found
+        return game_lose_ending  # return these moves as compulsory defensive move to prevent loss, to test which one is the most heuristically beneficial
+
+    for i in range(0, 10):
+        r = random.randint(0, 13)
+        c = random.randint(0, 11)
+        moves.append([r, c])
+    return moves
+
+    # no win cond found, attack!
+    # attack on non terminal state
+    moves.extend(attack(state, player))
+
+    # no win cond found, defense!
+    # defend on non-terminal state
+    moves.extend(defense(state, player))
+    return moves
 
 
 """"
@@ -138,7 +186,6 @@ def heuristic(state) -> int:
     heu_block = [[-1, +1], [-1, 0], [-1, -1], [0, -1]]  # Block corresponds to heu_dir_tracking
     heu_dir_tracking = [[[0 for i in range(0, 4)] for j in range(0, 15)] for k in range(0, 15)]
     heuristic_sum = 0
-    # print_format(state)
     list_of_moves = moves_made_during_search + actual_moves
     for move in list_of_moves:
         r = move[0]
@@ -147,7 +194,8 @@ def heuristic(state) -> int:
         for i in range(0, 4):
             block_r = r + heu_block[i][0]
             block_c = c + heu_block[i][1]
-            # only consider if there is no adjacent upper move by same player and block in this direction "i" has not been considered before
+            # only consider if there is no adjacent upper move by same player and block in this direction "i" has not
+            # been considered before
             if state[block_r][block_c] != player and heu_dir_tracking[r][c][i] == 0:
                 heu_dir_tracking[r][c][i] = 1
                 nr = r
@@ -167,17 +215,7 @@ def heuristic(state) -> int:
                     heuristic_sum = heuristic_sum + eval_points[num_block][num_same]
                 else:  # opposing player
                     heuristic_sum = heuristic_sum - eval_points[num_block][num_same]
-    if heuristic_sum < -9000:
-        print_format(state)
-    return heuristic_sum
-
-
-def update_search_tracking(r, c, method):
-    if method == "add":
-        a = 0
-    elif method == "remove":
-        a = 0
-    return
+    return 0
 
 
 """
@@ -196,8 +234,7 @@ def update_search_tracking(r, c, method):
 def make_future_move(state, i, j, k) -> [[int]]:
     state[i][j] = k
     moves_made_during_search.append([i, j])
-    track_moves_made_during_search[i][j] = 1
-    update_possible_moves(i, j, "add")
+    last_search_move[k - 1] = [i, j]
     return state
 
 
@@ -214,8 +251,6 @@ def undo_future_move(state, i, j) -> bool:
         return state
     state[i][j] = 0
     moves_made_during_search.remove([i, j])
-    track_moves_made_during_search[i][j] = 0
-    update_possible_moves(i, j, "remove")
     return state
 
 
@@ -232,8 +267,9 @@ def min_value(state) -> int:
         return heuristic(state)
 
     v = oo
-    for move in possible_moves:
-        if (board[move[0]][move[1]] == 0) and (track_moves_made_during_search[move[0]][move[1]] == 0):
+    list_of_possible_moves = update_possible_moves(state, 1)
+    for move in list_of_possible_moves:
+        if state[move[0]][move[1]] == 0:
             i = move[0]
             j = move[1]
             state = make_future_move(state, i, j, 1)
@@ -259,13 +295,15 @@ def max_value(state) -> int:
         return heuristic(state)
 
     v = -oo
-    for move in possible_moves:
-        if (board[move[0]][move[1]] == 0) and (track_moves_made_during_search[move[0]][move[1]] == 0):
+    list_of_possible_moves = update_possible_moves(state, 2)
+    for move in list_of_possible_moves:
+        if state[move[0]][move[1]] == 0:
             # make the move
             i = move[0]
             j = move[1]
             state = make_future_move(state, i, j, 2)
             if depth == 1:
+                # move to registered if state is valid
                 min_v = min_value(state)
                 if v < min_v:
                     v = min_v
@@ -312,6 +350,76 @@ def ai_move():
 """
 
 
+def update_tracking(r, c):
+    actual_moves.append([r, c])
+    return
+
+
+"""
+    This function makes a move at board[i, j] for player k
+
+    Var:
+        i, j: values of row and column for the move
+        k: 1 for player 1, 2 for player 2
+        board: current state of the board
+
+    Return:
+        True if the move was successful
+        False otherwise
+"""
+
+
+def make_a_move(i, j, k) -> bool:
+    global board
+    if board[i][j] != 0:
+        print("illegal move!, move not registered")
+        return False
+    board[i][j] = k
+    # k = 2, player
+    last_search_move[k - 1] = [i, j]
+    update_tracking(i, j)
+    return True
+
+
+"""
+    Checking terminal condition. The game reaches end condition when a row, column or a diagonal lines of 5 of the
+    moves from a same player exists. 
+
+    :var
+        state: current state of the board that we want to consider
+        last_move_r, last_move_c: last move made on the board
+        
+
+    :return
+        True if The game has ended 
+        False otherwise
+"""
+
+
+def terminal_reached(state, last_move_r, last_move_c) -> bool:
+    increment = [[-1, -1, + 1, + 1], [-1, 0, 1, 0], [-1, + 1, + 1, -1], [0, -1, 0, +1]]
+    for i in range(0, 4):
+        nr = last_move_r
+        nc = last_move_c
+        count_consecutive = 0  # count the number of consecutive moves
+        player = state[last_move_r][last_move_c]
+        while in_board(nr, nc) and state[nr][nc] == player:
+            count_consecutive += 1
+            nr += increment[i][0]
+            nc += increment[i][1]
+        nr = last_move_r
+        nc = last_move_c
+        while in_board(nr, nc) and state[nr][nc] == player:
+            count_consecutive += 1
+            nr += increment[i][2]
+            nc += increment[i][3]
+        count_consecutive += -1  # account for original moved being counted twice
+        if count_consecutive == 5:
+            print("reached")
+            return True
+    return False
+
+
 def print_format(state):
     for i in range(0, 15):
         for j in range(0, 15):
@@ -329,28 +437,26 @@ increments = [[[-2, 0], [-1, 0], [1, 0], [2, 0]], [[0, -2], [0, -1], [0, 1], [0,
 
 # A list used to check what tile on the board has been filled, used for generating new possible states in search tree,
 # and keep track of moves even if they are only generated for random search
-possible_moves = []  # A list of possible moves at each minimax traversal
 actual_moves = []  # A list of actual moves made in the game
-track_possible_moves = [[0 for i in range(0, 15)] for j in range(0, 15)]   # O(1) access for tracking elements in possible_moves
+last_search_move = [[0, 0], [0, 0]]  # last move in the search for both player
 moves_made_during_search = []  # for heuristic calculation
-track_moves_made_during_search = [[0 for i in range(0, 15)] for j in range(0, 15)]
 
 oo = 1000000
 depth = 0
-depth_limit = 5
+depth_limit = 4
 first_layer = True  # Used to extract the actual move that the AI will make
 ai_move_i = 0  # AI move
 ai_move_j = 0  # AI move
 alpha = -oo
 beta = oo
 
-print_format(board)
-
-turn = 1
-count = 0
-while not terminal_reached():
-    # print(possible_tracking)
-    # print_format(board)
+i1, j1 = input().split()
+i1 = int(i1)
+j1 = int(j1)
+make_a_move(i1, j1, 1)
+turn = 2
+while not terminal_reached(board, actual_moves[-1][0], actual_moves[-1][1]):
+    print_format(board)
     if turn == 1:
         i1, j1 = input().split()
         i1 = int(i1)
