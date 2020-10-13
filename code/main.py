@@ -96,26 +96,90 @@ def threat_detect(state, r, c) -> [[int]]:
     return moves  # no threat is found
 
 
-def attack(state, player):
-    # player makes attack moves at state
-    """
-        Possible attack:
-            line of 3 block 1: from a side
-            line of 2 non block: either side
-            line of 1 block: from surrounding
-    """
-    moves = []
-    return moves
+"""
+note; 2 lines of 2 unblocked > 1 line of 3 blocked
+"""
 
 
-def defense(state, player):
-    # player makes defense moves at state
-    """
-        Possible defense
-            line of 3 block 1: from only a side
-            line of 2 non block: either side
-    """
+def generate(state, player):
+    # list of moves that player makes a hypothetical moves at state
     moves = []
+    track_moves = [[0 for i in range(0, 15)] for j in range(0, 15)]
+    dir = [[+1, -1], [+1, 0], [+1, +1], [0, +1]]  # 0 down left, 1 down, 2 down right, 3 right
+    opposite_dir = [[-1, +1], [-1, 0], [-1, -1], [0, -1]]  # opposite corresponds to dir
+    dir_tracking = [[[0 for i in range(0, 4)] for j in range(0, 15)] for k in range(0, 15)]
+    for move in moves_made_during_search:
+        r = move[0]
+        c = move[1]
+        val = state[r][c]
+        for i in range(0, 4):
+            # reset
+            r = move[0]
+            c = move[1]
+            num_same = 0  # number of consecutive 1 of a kind
+            while in_board(r, c) and state[r][c] == val:
+                dir_tracking[r][c][i] = 1
+                num_same += 1
+                r += dir[i][0]
+                c += dir[i][1]
+            pivot_lower_r = r
+            pivot_lower_c = c
+            pivot_upper_r = move[0] + opposite_dir[i][0]
+            pivot_upper_c = move[1] + opposite_dir[i][1]
+            blocked_upper = False
+            blocked_lower = False
+            if not in_board(pivot_upper_r, pivot_upper_c) or state[pivot_upper_r][pivot_upper_c] == 3 - player:
+                blocked_upper = True
+            if not in_board(pivot_lower_r, pivot_lower_c) or state[pivot_lower_r][pivot_lower_c] == 3 - player:
+                blocked_lower = True
+
+            """
+                Possible attack:
+                    line of 3 block 1: from a side, 2 options: either block 4 or block 5
+                    line of 2 non block: either side, 4 options: block 3 and 4 from either side
+                    line of 1 non block: from surrounding, up to 8 options
+                    
+                Possible defense
+                    line of 3 block 1: from only a side, either block 4 or 5
+                    line of 2 non block: either side
+                    line of 1 block: surrounding blocks
+            """
+
+            if num_same == 3 or (num_same == 2 and val == player):  # both attack and defense
+                if not blocked_upper:
+                    count = 0
+                    while in_board(pivot_upper_r, pivot_upper_c) and state[pivot_upper_r][pivot_upper_c] == 0 and count < 2:  # not blocked, only 2 blocks upper
+                        if track_moves[pivot_upper_r][pivot_upper_c] == 0:
+                            track_moves[pivot_upper_r][pivot_upper_c] = 1
+                            moves.append([pivot_upper_r, pivot_upper_c])
+                        pivot_upper_r += opposite_dir[i][0]
+                        pivot_upper_c += opposite_dir[i][1]
+                        count += 1
+                if not blocked_lower:
+                    count = 0
+                    while in_board(pivot_lower_r, pivot_lower_c) and state[pivot_lower_r][pivot_lower_c] == 0 and count < 2:  # not blocked, only 2 blocks upper
+                        if track_moves[pivot_lower_r][pivot_lower_c] == 0:
+                            track_moves[pivot_lower_r][pivot_lower_c] = 1
+                            moves.append([pivot_lower_r, pivot_lower_c])
+                        pivot_lower_r += dir[i][0]
+                        pivot_lower_c += dir[i][1]
+                        count += 1
+            elif num_same == 1:  # 1 of a kind, only get surrounding moves
+                for j in range(-1, 2):
+                    for k in range(-1, 2):
+                        if in_board(move[0] + j, move[1] + k) and track_moves[move[0] + j][move[1] + k] == 0 and state[move[0] + j][move[1] + k] == 0:
+                            track_moves[move[0] + j][move[1] + k] = 1
+                            moves.append([move[0] + j, move[1] + k])
+
+            if val == 3 - player and num_same == 2:  # defense
+                if in_board(pivot_upper_r, pivot_upper_c) and state[pivot_upper_r][pivot_upper_c] == 0:
+                    if track_moves[pivot_upper_r][pivot_upper_c] == 0:
+                        track_moves[pivot_upper_r][pivot_upper_c] = 1
+                        moves.append([pivot_upper_r, pivot_upper_c])
+            if in_board(pivot_lower_r, pivot_lower_c) and state[pivot_lower_r][pivot_lower_c] == 0:
+                if track_moves[pivot_lower_r][pivot_lower_c] == 0:
+                    track_moves[pivot_lower_r][pivot_lower_c] = 1
+                    moves.append([pivot_lower_r, pivot_lower_c])
     return moves
 
 
@@ -143,19 +207,17 @@ def update_possible_moves(state, player) -> [[int]]:
     if len(game_lose_ending) > 0:  # Opposing player of playing win cond found, lose condition found
         return game_lose_ending  # return these moves as compulsory defensive move to prevent loss, to test which one is the most heuristically beneficial
 
-    for i in range(0, 10):
-        r = random.randint(0, 13)
-        c = random.randint(0, 11)
-        moves.append([r, c])
-    return moves
-
     # no win cond found, attack!
     # attack on non terminal state
-    moves.extend(attack(state, player))
+    moves.extend(generate(state, player))
 
     # no win cond found, defense!
     # defend on non-terminal state
-    moves.extend(defense(state, player))
+
+    heuristic_state = heuristic(state)
+    for move in moves:
+        # apply move, calculate new heuristic, sort moves according to newly calculated heuristic values
+        a = 0  # TODO
     return moves
 
 
@@ -196,7 +258,7 @@ def heuristic(state) -> int:
             block_c = c + heu_block[i][1]
             # only consider if there is no adjacent upper move by same player and block in this direction "i" has not
             # been considered before
-            if state[block_r][block_c] != player and heu_dir_tracking[r][c][i] == 0:
+            if in_board(block_r, block_c) and state[block_r][block_c] != player and heu_dir_tracking[r][c][i] == 0:
                 heu_dir_tracking[r][c][i] = 1
                 nr = r
                 nc = c
@@ -215,7 +277,7 @@ def heuristic(state) -> int:
                     heuristic_sum = heuristic_sum + eval_points[num_block][num_same]
                 else:  # opposing player
                     heuristic_sum = heuristic_sum - eval_points[num_block][num_same]
-    return 0
+    return heuristic_sum
 
 
 """
@@ -233,7 +295,9 @@ def heuristic(state) -> int:
 
 def make_future_move(state, i, j, k) -> [[int]]:
     state[i][j] = k
-    moves_made_during_search.append([i, j])
+    if track_moves_made_during_search[i][j] == 0:
+        track_moves_made_during_search[i][j] = 1
+        moves_made_during_search.append([i, j])
     last_search_move[k - 1] = [i, j]
     return state
 
@@ -250,6 +314,7 @@ def undo_future_move(state, i, j) -> bool:
     if state[i][j] == 0:
         return state
     state[i][j] = 0
+    track_moves_made_during_search[i][j] = 0
     moves_made_during_search.remove([i, j])
     return state
 
@@ -261,6 +326,9 @@ def undo_future_move(state, i, j) -> bool:
 
 def min_value(state) -> int:
     global depth, depth_limit, alpha, beta
+    if terminal_reached(state, last_search_move[1][0], last_search_move[1][1]):  # terminal reached by max'move, min lost
+        return oo
+
     # immediately return the heuristic value for current node when depth limit reached
     depth += 1
     if depth >= depth_limit:
@@ -290,12 +358,16 @@ def min_value(state) -> int:
 def max_value(state) -> int:
     global depth, depth_limit, ai_move_i, ai_move_j, alpha, beta
     # immediately return the heuristic value for current node when depth limit reached
+    if terminal_reached(state, last_search_move[0][0], last_search_move[0][1]):  # terminal reached by min'move, max lost
+        return -oo
+
     depth += 1
     if depth >= depth_limit:
         return heuristic(state)
 
     v = -oo
     list_of_possible_moves = update_possible_moves(state, 2)
+    # print(list_of_possible_moves)
     for move in list_of_possible_moves:
         if state[move[0]][move[1]] == 0:
             # make the move
@@ -321,7 +393,10 @@ def max_value(state) -> int:
 
 
 def ab_pruning(state) -> int:
-    global ai_move_i, ai_move_j
+    global ai_move_i, ai_move_j, moves_made_during_search
+    moves_made_during_search = []
+    for move in actual_moves:
+        moves_made_during_search.append(move)
     print(max_value(state))
     return ai_move_i, ai_move_j
 
@@ -415,7 +490,6 @@ def terminal_reached(state, last_move_r, last_move_c) -> bool:
             nc += increment[i][3]
         count_consecutive += -1  # account for original moved being counted twice
         if count_consecutive == 5:
-            print("reached")
             return True
     return False
 
@@ -440,10 +514,11 @@ increments = [[[-2, 0], [-1, 0], [1, 0], [2, 0]], [[0, -2], [0, -1], [0, 1], [0,
 actual_moves = []  # A list of actual moves made in the game
 last_search_move = [[0, 0], [0, 0]]  # last move in the search for both player
 moves_made_during_search = []  # for heuristic calculation
+track_moves_made_during_search = [[0 for i in range(0, 15)] for j in range(0, 15)]  # O(1) access for what move have been made during the search
 
 oo = 1000000
 depth = 0
-depth_limit = 4
+depth_limit = 6
 first_layer = True  # Used to extract the actual move that the AI will make
 ai_move_i = 0  # AI move
 ai_move_j = 0  # AI move
