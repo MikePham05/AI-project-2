@@ -2,16 +2,8 @@ import random
 
 
 def update_tracking(r, c):
-    global tracking
-    tracking.append([r, c])
-    for i in range(-1, 2):
-        for j in range(-1, 2):
-            if in_board(r + i, c + j):
-                nr = r + i
-                nc = c + j
-                if possible_tracking_state[nr][nc] == 0:
-                    possible_tracking_state[nr][nc] = 1
-                    possible_tracking.append([nr, nc])
+    actual_moves.append([r, c])
+    update_possible_moves(r, c, "add")
     return
 
 
@@ -30,7 +22,7 @@ def update_tracking(r, c):
 
 
 def make_a_move(i, j, k) -> bool:
-    global board, tracking
+    global board
     if board[i][j] != 0:
         print("illegal move!, move not registered")
         return False
@@ -101,17 +93,22 @@ def terminal_reached() -> bool:
 """
 
 
-def generating_moves() -> [[int]]:
-    global tracking, possible_tracking, search_tracking, possible_search_state
+def update_possible_moves(r, c, method) -> [[int]]:
     # strategy: generate possible moves of all surrounding tiles of actual moves
-    # moves = []  # list of moves to consider
-    if depth == 1:
-        moves = possible_tracking
-        search_tracking = possible_tracking
-        possible_search_state = possible_tracking_state
-    else:
-        moves = possible_search_state
-    return moves
+    for i in range(-1, 2):
+        for j in range(-1, 2):
+            if in_board(r + i, c + j):
+                nr = r + i
+                nc = c + j
+                if method == "add":
+                    if track_possible_moves[nr][nc] == 0:
+                        possible_moves.append([nr, nc])
+                    track_possible_moves[nr][nc] += 1
+                else:
+                    track_possible_moves[nr][nc] += -1
+                    if track_possible_moves[nr][nc] == 0:
+                        possible_moves.remove([nr, nc])
+    return
 
 
 """"
@@ -135,28 +132,51 @@ def generating_moves() -> [[int]]:
 
 def heuristic(state) -> int:
     # evaluation points for 1, 2, 3, 4 in a rows (4 is winning state!)
-    # eval[i, j]: heuristic point of a row, column, diagonal line with i of a kind and j blocking of opponent move
-    eval_points = [[0, 32, 64, 9999, 9999], [0, 16, 32, 64, 9999], [0, 0, 0, 0, 9999]]
-
-    return random.randint(0, 10)
+    # eval[i, j]: heuristic point of a row, column, diagonal line with j of a kind and i blocking of opponent move
+    eval_points = [[0, 0, 30, 100, 9999, 9999], [0, 0, 10, 30, 100, 9999], [0, 0, 0, 0, 0, 9999]]
+    heu_dir = [[+1, -1], [+1, 0], [+1, +1], [0, +1]]  # 0 down left, 1 down, 2 down right, 3 right
+    heu_block = [[-1, +1], [-1, 0], [-1, -1], [0, -1]]  # Block corresponds to heu_dir_tracking
+    heu_dir_tracking = [[[0 for i in range(0, 4)] for j in range(0, 15)] for k in range(0, 15)]
+    heuristic_sum = 0
+    # print_format(state)
+    list_of_moves = moves_made_during_search + actual_moves
+    for move in list_of_moves:
+        r = move[0]
+        c = move[1]
+        player = state[r][c]
+        for i in range(0, 4):
+            block_r = r + heu_block[i][0]
+            block_c = c + heu_block[i][1]
+            # only consider if there is no adjacent upper move by same player and block in this direction "i" has not been considered before
+            if state[block_r][block_c] != player and heu_dir_tracking[r][c][i] == 0:
+                heu_dir_tracking[r][c][i] = 1
+                nr = r
+                nc = c
+                num_block = 0
+                num_same = 0
+                if (not in_board(block_r, block_c)) or (state[block_r][block_c] == 3 - player):
+                    num_block += 1  # there's block
+                while in_board(nr, nc) and state[nr][nc] == player:
+                    heu_dir_tracking[nr][nc][i] = 1
+                    nr = nr + heu_dir[i][0]
+                    nc = nc + heu_dir[i][1]
+                    num_same += 1
+                if (not in_board(nr, nc)) or (state[nr][nc] == 3 - player):
+                    num_block += 1  # there's block
+                if player == 2:  # AI player
+                    heuristic_sum = heuristic_sum + eval_points[num_block][num_same]
+                else:  # opposing player
+                    heuristic_sum = heuristic_sum - eval_points[num_block][num_same]
+    if heuristic_sum < -9000:
+        print_format(state)
+    return heuristic_sum
 
 
 def update_search_tracking(r, c, method):
-    global new_added_to_search_tracking
     if method == "add":
-        for i in range(-1, 2):
-            for j in range(-1, 2):
-                if in_board(r + i, c + j):
-                    nr = r + i
-                    nc = c + j
-                    if possible_search_state[nr][nc] == 0:
-                        possible_search_state[nr][nc] = 1
-                        search_tracking.append([nr, nc])
-                        new_added_to_search_tracking += 1
+        a = 0
     elif method == "remove":
-        while new_added_to_search_tracking > 0:
-            new_added_to_search_tracking += -1
-            search_tracking.pop()
+        a = 0
     return
 
 
@@ -175,7 +195,9 @@ def update_search_tracking(r, c, method):
 
 def make_future_move(state, i, j, k) -> [[int]]:
     state[i][j] = k
-    update_search_tracking(i, j, "add")
+    moves_made_during_search.append([i, j])
+    track_moves_made_during_search[i][j] = 1
+    update_possible_moves(i, j, "add")
     return state
 
 
@@ -191,7 +213,9 @@ def undo_future_move(state, i, j) -> bool:
     if state[i][j] == 0:
         return state
     state[i][j] = 0
-    update_search_tracking(i, j, "remove")
+    moves_made_during_search.remove([i, j])
+    track_moves_made_during_search[i][j] = 0
+    update_possible_moves(i, j, "remove")
     return state
 
 
@@ -200,24 +224,20 @@ def undo_future_move(state, i, j) -> bool:
 """
 
 
-def min_value(state, alpha, beta) -> int:
-    global depth, depth_limit
+def min_value(state) -> int:
+    global depth, depth_limit, alpha, beta
     # immediately return the heuristic value for current node when depth limit reached
     depth += 1
-    if depth == depth_limit:
+    if depth >= depth_limit:
         return heuristic(state)
-
-    possible_moves = generating_moves()
-    # print(depth, search_tracking)
 
     v = oo
     for move in possible_moves:
-        if state[move[0]][move[1]] == 0:
+        if (board[move[0]][move[1]] == 0) and (track_moves_made_during_search[move[0]][move[1]] == 0):
             i = move[0]
             j = move[1]
             state = make_future_move(state, i, j, 1)
-            # print("min move made at: ", i, " ", j)
-            v = min(v, max_value(state, alpha, beta))
+            v = min(v, max_value(state))
             state = undo_future_move(state, i, j)
             depth += -1
             if v <= alpha:
@@ -231,33 +251,28 @@ def min_value(state, alpha, beta) -> int:
 """
 
 
-def max_value(state, alpha, beta) -> int:
-    global depth, depth_limit, ai_move_i, ai_move_j
+def max_value(state) -> int:
+    global depth, depth_limit, ai_move_i, ai_move_j, alpha, beta
     # immediately return the heuristic value for current node when depth limit reached
     depth += 1
-    if depth == depth_limit:
+    if depth >= depth_limit:
         return heuristic(state)
-
-    possible_moves = generating_moves()
-    # print(depth, search_tracking)
 
     v = -oo
     for move in possible_moves:
-        if state[move[0]][move[1]] == 0:
+        if (board[move[0]][move[1]] == 0) and (track_moves_made_during_search[move[0]][move[1]] == 0):
             # make the move
             i = move[0]
             j = move[1]
             state = make_future_move(state, i, j, 2)
-            # print("max move made at: ", i, " ", j)
-            # need to extract the move if traversing at top node
             if depth == 1:
-                min_v = min_value(state, alpha, beta)
+                min_v = min_value(state)
                 if v < min_v:
                     v = min_v
                     ai_move_i = i
                     ai_move_j = j
             else:
-                v = max(v, min_value(state, alpha, beta))
+                v = max(v, min_value(state))
             # undo move
             depth += -1
             state = undo_future_move(state, i, j)
@@ -269,7 +284,7 @@ def max_value(state, alpha, beta) -> int:
 
 def ab_pruning(state) -> int:
     global ai_move_i, ai_move_j
-    max_value(state, -oo, oo)
+    print(max_value(state))
     return ai_move_i, ai_move_j
 
 
@@ -314,26 +329,28 @@ increments = [[[-2, 0], [-1, 0], [1, 0], [2, 0]], [[0, -2], [0, -1], [0, 1], [0,
 
 # A list used to check what tile on the board has been filled, used for generating new possible states in search tree,
 # and keep track of moves even if they are only generated for random search
-tracking = []
-possible_tracking = []
-possible_tracking_state = [[0 for i in range(0, 15)] for j in range(0, 15)]
-search_tracking = []
-possible_search_state = [[0 for i in range(0, 15)] for j in range(0, 15)]
-new_added_to_search_tracking = 0
+possible_moves = []  # A list of possible moves at each minimax traversal
+actual_moves = []  # A list of actual moves made in the game
+track_possible_moves = [[0 for i in range(0, 15)] for j in range(0, 15)]   # O(1) access for tracking elements in possible_moves
+moves_made_during_search = []  # for heuristic calculation
+track_moves_made_during_search = [[0 for i in range(0, 15)] for j in range(0, 15)]
 
 oo = 1000000
 depth = 0
-depth_limit = 4
+depth_limit = 5
 first_layer = True  # Used to extract the actual move that the AI will make
 ai_move_i = 0  # AI move
 ai_move_j = 0  # AI move
+alpha = -oo
+beta = oo
 
-# print_format(board)
+print_format(board)
 
 turn = 1
 count = 0
 while not terminal_reached():
     # print(possible_tracking)
+    # print_format(board)
     if turn == 1:
         i1, j1 = input().split()
         i1 = int(i1)
@@ -342,6 +359,8 @@ while not terminal_reached():
             turn = 2
     else:
         if ai_move():
+            alpha = -oo
+            beta = oo
             depth = 0  # reset depth
             turn = 1
 
