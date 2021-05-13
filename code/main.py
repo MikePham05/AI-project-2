@@ -23,16 +23,27 @@ class Threat:
         self.direction = direction
         self.value = value
 
-
+        
+"""Whether square[row][col] is in the board
+    
+ARGS:
+    row, col(int): number of row and column
+    
+RETURN:
+    bool: whether square is in the board
+"""
 def in_board(row, column) -> bool:
     return 0 <= row <= 14 and 0 <= column <= 14
 
 
-"""
-    return [upper pivot r, upper pivot c, lower pivot r, lower pivot c]
-"""
+"""Count number of consecutive values in a line of same move in a certain direction
 
-
+ARGS:
+    r, c(int): row and column of square
+    direction(int): 0 -> 3 
+ 
+RETURN: Starting and endling points of line [upper pivot r, upper pivot c, lower pivot r, lower pivot c]
+"""
 def count_consecutive(r, c, direction) -> [int]:
     res = [-1, -1, -1, -1]
     if not in_board(r, c):
@@ -57,6 +68,13 @@ def count_consecutive(r, c, direction) -> [int]:
     return res
 
 
+
+"""Return when the game is over, 1 player is victorious
+
+ARGS: None
+
+RETURN: val(Bool): Whether the game has ended
+"""
 def game_ended() -> bool:
     if last_move[turn][0] < 0:  # last move not recorded, game just started
         return False
@@ -73,7 +91,17 @@ def game_ended() -> bool:
     return 0
 
 
+
+"""Check obvious moves that will have to be played for the best outcome at that position
+
+ARGS: None
+
+RETURN: list [[int]]: Obvious winning move
 """
+
+
+def check_ending_move() -> [[int]]:
+    """
     step 1
     your last_move r1, c1 (AI move)
     * span up, and down: get count of consecutive move with r1, c1
@@ -84,10 +112,7 @@ def game_ended() -> bool:
     SQUARE WHICH WOULD RESULT IN IMMEDIATE END GAME, WE JUST NEED TO CHECK IF PATTERN EXISTS,
     REGARDLESS THE ACTUAL VALUE OF THE SQUARE
     * NEEDS GENERALIZATION WITH A FUNCTION   
-"""
-
-
-def check_ending_move() -> [[int]]:
+    """
     # GAME-ENDING MOVES
     # step 1: attack 4 blocked 1 or unblocked, yes move that wins the game for player + return that move, no -> next step
     # step 2: defend 4 blocked 1, yes -> only valid move that saved the game + return that move, no -> next step
@@ -151,8 +176,11 @@ def check_ending_move() -> [[int]]:
     return []  # did not found the winning move
 
 
-"""
-    generates hypothetical moves for player player
+"""Generates hypothetical moves for player player
+
+ARGS: Player(int) current player turn's (0 or 1)
+
+RETURN: result_list([[int]]): List of move to consider to that player at the point of the game
 """
 
 
@@ -176,6 +204,11 @@ def generate_moves(player) -> [[int]]:
         a^1 + a^2 + ... + a^15 = S
     """
     return result_list
+
+
+""" #TODO
+    Return: heuristic evaluation for the current board position
+"""
 
 
 def heuristic():
@@ -207,6 +240,16 @@ def update_threat(r, c, type):
     return
 
 
+""" Min_value function, which choose best move adn optimizing search process for pruning
+
+ARGS:   alpha (int): alpha best evalution point for human
+        beta (int): beta best evaluation point for computer
+        depth (int): depth of current search
+
+RETURN: v (int) best value achivable at current node
+"""
+
+
 def min_value(alpha, beta, depth):
     if depth == depth_limit:  # if reach depth limit, terminate, return heu value
         return heuristic()
@@ -234,6 +277,15 @@ def min_value(alpha, beta, depth):
         update_threat(r, c, "undo move")
         board[r][c] = 0
     return v
+
+""" Max_value function, which choose best move adn optimizing search process for pruning
+
+ARGS:   alpha (int): alpha best evalution point for human
+        beta (int): beta best evaluation point for computer
+        depth (int): depth of current search
+
+RETURN: v (int) best value achivable at current node
+"""
 
 
 def max_value(alpha, beta, depth):
@@ -269,6 +321,12 @@ def max_value(alpha, beta, depth):
     return v
 
 
+""" Running AB prunning algorithm
+ARGS: NONE
+RETURNS: NONE
+"""
+
+
 def ab_pruning():
     global best_score
     best_score = -oo  # reset best score for new pruning
@@ -276,6 +334,11 @@ def ab_pruning():
     row = AI_move[0]  # move has been updated
     column = AI_move[1]
     return 0, 0
+
+""" GAME PLAYING OVER THE BOARD. GAME ABORTED WHEN A PLAYER WINS
+ARGS: NONE
+RETURN NONE
+"""
 
 
 def game_playing():
